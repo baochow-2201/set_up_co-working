@@ -12,11 +12,22 @@ export default function Editor({ fileId, username }) {
   const [status, setStatus] = useState("Đang kết nối...");
   const [usersOnline, setUsersOnline] = useState([]);
 
+  // ✅ Lấy URL từ ENV
+  const SERVER_URL = process.env.REACT_APP_SERVER_URL;
+  const API_URL = SERVER_URL?.replace("wss", "https");
+
   useEffect(() => {
     if (!ref.current) return;
 
     const ydoc = new Y.Doc();
-    const provider = new WebsocketProvider("ws://localhost:5000", fileId, ydoc);
+
+    // ✅ WebSocket dùng URL deploy
+    const provider = new WebsocketProvider(
+      SERVER_URL,
+      fileId,
+      ydoc
+    );
+
     const yText = ydoc.getText("monaco");
 
     provider.on("status", (e) => {
@@ -35,6 +46,7 @@ export default function Editor({ fileId, username }) {
       lineNumbersMinChars: 3,
       padding: { top: 15 }
     });
+
     editorRef.current = editor;
 
     const binding = new MonacoBinding(
@@ -45,19 +57,28 @@ export default function Editor({ fileId, username }) {
     );
 
     const userColor = "#" + Math.floor(Math.random() * 16777215).toString(16);
-    provider.awareness.setLocalStateField("user", { name: username, color: userColor });
+
+    provider.awareness.setLocalStateField("user", {
+      name: username,
+      color: userColor
+    });
 
     provider.awareness.on("change", () => {
       const states = Array.from(provider.awareness.getStates().values());
       const names = states.filter(s => s.user).map(s => s.user.name);
-      setUsersOnline([...new Set(names)]); 
+      setUsersOnline([...new Set(names)]);
     });
 
-    axios.get(`http://localhost:5000/load/${fileId}`).then(res => {
-      if (yText.toString().length === 0 && res.data.content) {
-        yText.insert(0, res.data.content);
-      }
-    });
+    // ✅ Load file từ server (deploy)
+    axios.get(`${API_URL}/load/${fileId}`)
+      .then(res => {
+        if (yText.toString().length === 0 && res.data.content) {
+          yText.insert(0, res.data.content);
+        }
+      })
+      .catch(() => {
+        setStatus("Lỗi load file ❌");
+      });
 
     return () => {
       binding.destroy();
@@ -65,12 +86,11 @@ export default function Editor({ fileId, username }) {
       provider.destroy();
       ydoc.destroy();
     };
-  }, [fileId, username]);
+  }, [fileId, username, SERVER_URL, API_URL]);
 
   return (
     <div className="editor-wrapper">
 
-      {/* 🔥 Status Bar + Save Button */}
       <div className="editor-status-bar" style={statusBarEnhanced}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <span
@@ -89,9 +109,7 @@ export default function Editor({ fileId, username }) {
           </span>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          {/* ✅ NÚT SAVE */}
-
+        <div style={{ display: "flex", gap: "8px" }}>
           {usersOnline.map((name, i) => (
             <span key={i} style={userTagEnhanced}>
               {name}

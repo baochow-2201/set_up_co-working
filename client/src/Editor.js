@@ -12,16 +12,33 @@ export default function Editor({ fileId, username }) {
   const [status, setStatus] = useState("Đang kết nối...");
   const [usersOnline, setUsersOnline] = useState([]);
 
-  // ✅ Lấy URL từ ENV
   const SERVER_URL = process.env.REACT_APP_SERVER_URL;
   const API_URL = SERVER_URL?.replace("wss", "https");
+
+  // ✅ FIX: Đặt save ở ngoài
+  const save = async () => {
+    if (!editorRef.current) return;
+
+    setStatus("Đang lưu...");
+
+    try {
+      await axios.post(`${API_URL}/save`, {
+        fileId,
+        content: editorRef.current.getValue()
+      });
+
+      setStatus("Đã lưu ✅");
+      setTimeout(() => setStatus("Đã kết nối"), 1500);
+    } catch (err) {
+      setStatus("Lỗi lưu file ❌");
+    }
+  };
 
   useEffect(() => {
     if (!ref.current) return;
 
     const ydoc = new Y.Doc();
 
-    // ✅ WebSocket dùng URL deploy
     const provider = new WebsocketProvider(
       SERVER_URL,
       fileId,
@@ -41,10 +58,7 @@ export default function Editor({ fileId, username }) {
       automaticLayout: true,
       fontSize: 15,
       fontFamily: "var(--font-monaco)",
-      minimap: { enabled: false },
-      scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
-      lineNumbersMinChars: 3,
-      padding: { top: 15 }
+      minimap: { enabled: false }
     });
 
     editorRef.current = editor;
@@ -69,16 +83,13 @@ export default function Editor({ fileId, username }) {
       setUsersOnline([...new Set(names)]);
     });
 
-    // ✅ Load file từ server (deploy)
     axios.get(`${API_URL}/load/${fileId}`)
       .then(res => {
         if (yText.toString().length === 0 && res.data.content) {
           yText.insert(0, res.data.content);
         }
       })
-      .catch(() => {
-        setStatus("Lỗi load file ❌");
-      });
+      .catch(() => setStatus("Lỗi load file ❌"));
 
     return () => {
       binding.destroy();
@@ -91,25 +102,25 @@ export default function Editor({ fileId, username }) {
   return (
     <div className="editor-wrapper">
 
-      <div className="editor-status-bar" style={statusBarEnhanced}>
+      <div style={statusBarEnhanced}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <span
-            className={`status-dot ${status.includes("kết nối") ? "online" : ""}`}
-            style={dotStyle}
-          ></span>
+          <span style={dotStyle}></span>
 
-          <span style={{ fontSize: "14px", fontWeight: "600", color: "#ccc" }}>
-            {status}
-          </span>
+          <span style={{ color: "#ccc" }}>{status}</span>
 
           <span style={{ color: "#444" }}>|</span>
 
-          <span style={{ fontSize: "14px", color: "#999" }}>
-            👥 <strong>{usersOnline.length}</strong> đang online
+          <span style={{ color: "#999" }}>
+            👥 {usersOnline.length} online
           </span>
         </div>
 
-        <div style={{ display: "flex", gap: "8px" }}>
+        <div style={{ display: "flex", gap: "10px" }}>
+          {/* ✅ NÚT SAVE */}
+          <button onClick={save} style={saveBtn}>
+            💾 Save
+          </button>
+
           {usersOnline.map((name, i) => (
             <span key={i} style={userTagEnhanced}>
               {name}
@@ -119,27 +130,6 @@ export default function Editor({ fileId, username }) {
       </div>
 
       <div ref={ref} className="monaco-container" />
-
-      <style>{`
-        .yRemoteSelection { background-color: rgba(0, 255, 255, 0.15); }
-        .yRemoteSelectionHead {
-          position: absolute;
-          border-left: 2px solid var(--primary-cyan);
-          height: 100%;
-        }
-        .yRemoteSelectionHead::after {
-          position: absolute;
-          content: attr(data-user-name);
-          top: -1.5em;
-          left: -2px;
-          padding: 2px 8px;
-          font-size: 11px;
-          color: #fff;
-          font-weight: 600;
-          background: inherit;
-          border-radius: 4px;
-        }
-      `}</style>
     </div>
   );
 }
@@ -148,24 +138,30 @@ export default function Editor({ fileId, username }) {
 const statusBarEnhanced = {
   padding: "12px 20px",
   background: "#1a1a1a",
-  borderBottom: "1px solid #333",
   display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center"
+  justifyContent: "space-between"
 };
 
 const dotStyle = {
   width: "10px",
   height: "10px",
   borderRadius: "50%",
-  background: "var(--primary-cyan)"
+  background: "cyan"
 };
 
 const userTagEnhanced = {
-  background: "rgba(0, 255, 255, 0.1)",
-  color: "var(--primary-cyan)",
+  background: "#222",
+  color: "cyan",
   padding: "4px 10px",
   borderRadius: "6px",
-  fontSize: "12px",
+  fontSize: "12px"
+};
+
+const saveBtn = {
+  background: "cyan",
+  border: "none",
+  padding: "6px 12px",
+  borderRadius: "6px",
+  cursor: "pointer",
   fontWeight: "bold"
 };

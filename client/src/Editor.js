@@ -12,7 +12,7 @@ export default function Editor({ fileId, username }) {
   const [status, setStatus] = useState("Đang kết nối...");
   const [usersOnline, setUsersOnline] = useState([]);
 
-  // Hàm lưu file
+  // ✅ Hàm lưu file (đã được sử dụng)
   const save = async () => {
     if (!editorRef.current) return;
     setStatus("Đang lưu...");
@@ -44,7 +44,7 @@ export default function Editor({ fileId, username }) {
       language: "javascript",
       theme: "vs-dark",
       automaticLayout: true,
-      fontSize: 15, // Tăng nhẹ size chữ code
+      fontSize: 15,
       fontFamily: "var(--font-monaco)",
       minimap: { enabled: false },
       scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
@@ -53,7 +53,12 @@ export default function Editor({ fileId, username }) {
     });
     editorRef.current = editor;
 
-    const binding = new MonacoBinding(yText, editor.getModel(), new Set([editor]), provider.awareness);
+    const binding = new MonacoBinding(
+      yText,
+      editor.getModel(),
+      new Set([editor]),
+      provider.awareness
+    );
 
     const userColor = "#" + Math.floor(Math.random() * 16777215).toString(16);
     provider.awareness.setLocalStateField("user", { name: username, color: userColor });
@@ -80,20 +85,34 @@ export default function Editor({ fileId, username }) {
 
   return (
     <div className="editor-wrapper">
-      {/* Thanh Status Bar được làm mới */}
+
+      {/* 🔥 Status Bar + Save Button */}
       <div className="editor-status-bar" style={statusBarEnhanced}>
-        <div className="status-info" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <span className={`status-dot ${status.includes("kết nối") ? "online" : ""}`} style={dotStyle}></span>
-          <span style={{ fontSize: "14px", fontWeight: "600", color: "#ccc" }}>{status}</span>
-          <span className="divider" style={{ color: "#444", margin: "0 5px" }}>|</span>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <span
+            className={`status-dot ${status.includes("kết nối") ? "online" : ""}`}
+            style={dotStyle}
+          ></span>
+
+          <span style={{ fontSize: "14px", fontWeight: "600", color: "#ccc" }}>
+            {status}
+          </span>
+
+          <span style={{ color: "#444" }}>|</span>
+
           <span style={{ fontSize: "14px", color: "#999" }}>
-            👥 <strong>{usersOnline.length}</strong> thành viên đang gõ
+            👥 <strong>{usersOnline.length}</strong> đang online
           </span>
         </div>
-        
-        <div className="user-list-tags" style={{ display: "flex", gap: "8px" }}>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          {/* ✅ NÚT SAVE */}
+          <button onClick={save} style={saveBtn}>
+            💾 Save
+          </button>
+
           {usersOnline.map((name, i) => (
-            <span key={i} className="user-tag" style={userTagEnhanced}>
+            <span key={i} style={userTagEnhanced}>
               {name}
             </span>
           ))}
@@ -102,13 +121,11 @@ export default function Editor({ fileId, username }) {
 
       <div ref={ref} className="monaco-container" />
 
-      {/* Hiệu ứng con trỏ đồng bộ với tên người dùng */}
       <style>{`
         .yRemoteSelection { background-color: rgba(0, 255, 255, 0.15); }
         .yRemoteSelectionHead {
           position: absolute;
           border-left: 2px solid var(--primary-cyan);
-          border-color: inherit;
           height: 100%;
         }
         .yRemoteSelectionHead::after {
@@ -122,15 +139,13 @@ export default function Editor({ fileId, username }) {
           font-weight: 600;
           background: inherit;
           border-radius: 4px;
-          pointer-events: none;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.3);
         }
       `}</style>
     </div>
   );
 }
 
-// Các style bổ sung cho "xịn" hơn
+// 🎨 Style
 const statusBarEnhanced = {
   padding: "12px 20px",
   background: "#1a1a1a",
@@ -144,16 +159,23 @@ const dotStyle = {
   width: "10px",
   height: "10px",
   borderRadius: "50%",
-  background: "var(--primary-cyan)",
-  boxShadow: "0 0 8px var(--primary-cyan)"
+  background: "var(--primary-cyan)"
 };
 
 const userTagEnhanced = {
   background: "rgba(0, 255, 255, 0.1)",
   color: "var(--primary-cyan)",
-  padding: "4px 12px",
+  padding: "4px 10px",
   borderRadius: "6px",
   fontSize: "12px",
-  fontWeight: "bold",
-  border: "1px solid rgba(0, 255, 255, 0.2)"
+  fontWeight: "bold"
+};
+
+const saveBtn = {
+  background: "#00ffff",
+  border: "none",
+  padding: "6px 12px",
+  borderRadius: "6px",
+  cursor: "pointer",
+  fontWeight: "bold"
 };

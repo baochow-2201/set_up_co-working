@@ -13,7 +13,8 @@ import './styles/index.css';
 
 export default function App() {
   return (
-    <Router>
+    /* Thêm prop future để xóa sạch cảnh báo Console */
+    <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />

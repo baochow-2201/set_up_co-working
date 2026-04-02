@@ -1,203 +1,102 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, getDocs, doc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../config/firebase';
-import { PERMISSIONS } from '../config/permissions';
+import { ref, onValue } from 'firebase/database';
+import { useNavigate } from 'react-router-dom';
+import { FiArrowLeft, FiUsers } from 'react-icons/fi'; 
+import { auth, rtdb } from '../config/firebase';
 import '../styles/members.css';
 
 export default function Members() {
-  const [members, setMembers] = useState([]);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [onlineUsers, setOnlineUsers] = useState({});
   const [loading, setLoading] = useState(true);
-  const [editingMemberId, setEditingMemberId] = useState(null);
-  const [editingData, setEditingData] = useState({ role: 'member', permissions: [] });
   const navigate = useNavigate();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (!user) {
         navigate('/login');
         return;
       }
-
-      try {
-        const userRef = doc(db, 'users', user.uid);
-        const userSnap = await getDoc(userRef);
-        
-        if (!userSnap.exists()) {
-          alert('User data not found');
-          navigate('/login');
-          return;
-        }
-
-        const userRole = userSnap.data().role;
-        
-        if (userRole !== 'admin') {
-          alert('Admin access only - Your current role: ' + (userRole || 'none'));
-          navigate('/dashboard');
-          return;
-        }
-
-        setIsAdmin(true);
-        
-        const usersSnap = await getDocs(collection(db, 'users'));
-        const membersList = [];
-        usersSnap.forEach(doc => {
-          membersList.push({
-            id: doc.id,
-            ...doc.data()
-          });
-        });
-        setMembers(membersList);
-      } catch (error) {
-        console.error('Error loading members:', error);
-        alert('Error: ' + error.message);
-      } finally {
-        setLoading(false);
-      }
+      setCurrentUser(user);
+      setLoading(false);
     });
 
     return () => unsubscribe();
   }, [navigate]);
 
-  const handleEditClick = (member) => {
-    setEditingMemberId(member.id);
-    setEditingData({
-      role: member.role || 'member',
-      permissions: member.permissions || []
+  useEffect(() => {
+    const presenceRef = ref(rtdb, 'presence');
+
+    const unsubscribe = onValue(presenceRef, (snapshot) => { 
+      const data = snapshot.val() || {};
+      setOnlineUsers(data);
     });
-  };
 
-  const handleSaveChanges = async () => {
-    try {
-      const userRef = doc(db, 'users', editingMemberId);
-      await updateDoc(userRef, {
-        role: editingData.role,
-        permissions: editingData.permissions
-      });
-      alert('Member updated successfully');
-      setEditingMemberId(null);
-      
-      const usersSnap = await getDocs(collection(db, 'users'));
-      const membersList = [];
-      usersSnap.forEach(doc => {
-        membersList.push({
-          id: doc.id,
-          ...doc.data()
-        });
-      });
-      setMembers(membersList);
-    } catch (error) {
-      alert('Error updating member: ' + error.message);
-    }
-  };
+    return () => unsubscribe(); 
+  }, []);
 
-  const handleDeleteMember = async (memberId) => {
-    if (confirm('Are you sure you want to delete this member?')) {
-      try {
-        const userRef = doc(db, 'users', memberId);
-        await deleteDoc(userRef);
-        alert('Member deleted successfully');
-        
-        const usersSnap = await getDocs(collection(db, 'users'));
-        const membersList = [];
-        usersSnap.forEach(doc => {
-          membersList.push({
-            id: doc.id,
-            ...doc.data()
-          });
-        });
-        setMembers(membersList);
-      } catch (error) {
-        alert('Error deleting member: ' + error.message);
-      }
-    }
-  };
+  if (loading) return <div className="loading">Loading users...</div>;
 
-  const handlePermissionChange = (permission) => {
-    setEditingData(prev => {
-      const permissions = prev.permissions.includes(permission)
-        ? prev.permissions.filter(p => p !== permission)
-        : [...prev.permissions, permission];
-      return { ...prev, permissions };
-    });
-  };
-
-  if (loading) return <div className="loading">Loading members...</div>;
-
-  if (!isAdmin) return <div className="error">Admin access only</div>;
+  const totalOnline = Object.keys(onlineUsers).length;
 
   return (
     <div className="members-container">
+
+      {/* HEADER */}
       <div className="members-header">
-        <h1>Members Management</h1>
+        <div className="header-top">
+          <button className="btn-back" onClick={() => navigate('/dashboard')}>
+            <FiArrowLeft /> Quay lại
+          </button>
+
+          <h2><FiUsers /> Members</h2>
+        </div>
+
+        <div className="header-title">
+          <h1>Thành viên hoạt động</h1>
+          <p>Đang online: {totalOnline} người</p>
+        </div>
+
       </div>
 
-      <table className="members-table">
-        <thead>
-          <tr>
-            <th>Email</th>
-            <th>Role</th>
-            <th>Permissions</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {members.map(member => (
-            editingMemberId === member.id ? (
-              <tr key={member.id} className="edit-row">
-                <td>{member.email}</td>
-                <td>
-                  <select 
-                    value={editingData.role}
-                    onChange={(e) => setEditingData(prev => ({ ...prev, role: e.target.value }))}
-                  >
-                    <option value="member">Member</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                </td>
-                <td>
-                  <div className="permission-checkboxes">
-                    {Object.values(PERMISSIONS).map(perm => (
-                      <label key={perm}>
-                        <input
-                          type="checkbox"
-                          checked={editingData.permissions.includes(perm)}
-                          onChange={() => handlePermissionChange(perm)}
-                        />
-                        {perm}
-                      </label>
-                    ))}
-                  </div>
-                </td>
-                <td className="actions">
-                  <button className="btn-save" onClick={handleSaveChanges}>Save</button>
-                  <button className="btn-cancel" onClick={() => setEditingMemberId(null)}>Cancel</button>
-                </td>
-              </tr>
-            ) : (
-              <tr key={member.id}>
-                <td>{member.email}</td>
-                <td>
-                  <span className={`role-badge role-${member.role || 'member'}`}>
-                    {(member.role || 'member').charAt(0).toUpperCase() + (member.role || 'member').slice(1)}
-                  </span>
-                </td>
-                <td className="permissions-cell">
-                  {(member.permissions || []).map(p => (
-                    <span key={p} className="permission-tag">{p}</span>
-                  ))}
-                </td>
-                <td className="actions">
-                  <button className="btn-edit" onClick={() => handleEditClick(member)}>Edit</button>
-                  <button className="btn-delete" onClick={() => handleDeleteMember(member.id)}>Delete</button>
-                </td>
-              </tr>
-            )
-          ))}
-        </tbody>
-      </table>
+      <div className="members-list">
+        {totalOnline === 0 && (
+          <div className="empty">Không có ai online</div>
+        )}
+
+        {Object.entries(onlineUsers)
+          .sort(([a], [b]) => (a === currentUser?.uid ? -1 : b === currentUser?.uid ? 1 : 0)) 
+          .map(([uid, user]) => {
+            const isMe = uid === currentUser?.uid;
+
+            return (
+              <div key={uid} className={`member-item ${isMe ? 'me' : ''}`}>
+                
+                <img
+                  src={
+                    user.photo ||
+                    `https://ui-avatars.com/api/?name=${user.name}`
+                  }
+                  alt="avatar"
+                  className="avatar"
+                />
+
+                <div className="member-info">
+                  <h4>
+                    {user.name || user.email || 'Unknown'} 
+                    {isMe && <span className="you-badge"> (You)</span>}
+                  </h4>
+                  <p className="sub-text">Đang hoạt động</p>
+                </div>
+
+                <div className="status">
+                  <span className="dot online"></span>
+                </div>
+              </div>
+            );
+          })}
+      </div>
     </div>
   );
 }
